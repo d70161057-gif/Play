@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <title>لعبة الثعبان ثلاثية الأبعاد</title>
+    <style>
+        body {
+            background: #222;
+            color: #fff;
+            font-family: 'Cairo', Arial, sans-serif;
+            text-align: center;
+        }
+        #game-container {
+            width: 800px;
+            height: 600px;
+            margin: 30px auto;
+            border: 2px solid #fff;
+            background: #111;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #score {
+            font-size: 20px;
+            margin: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>لعبة الثعبان ثلاثية الأبعاد</h1>
+    <div id="score">النقاط: 0</div>
+    <div id="game-container"></div>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.min.js"></script>
+    <script>
+    // إعداد المشهد والكاميرا والرندر الأساسي
+    const container = document.getElementById('game-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x222222);
+
+    const camera = new THREE.PerspectiveCamera(75, 800/600, 0.1, 1000);
+    camera.position.set(0, 20, 30);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer();
+    renderer.setSize(800, 600);
+    container.appendChild(renderer.domElement);
+
+    // أرضية
+    const floorGeometry = new THREE.PlaneGeometry(20, 20);
+    const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x333333 });
+    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+    floor.rotation.x = -Math.PI / 2;
+    scene.add(floor);
+
+    // إضاءة
+    const light = new THREE.DirectionalLight(0xffffff, 1);
+    light.position.set(20, 20, 10);
+    scene.add(light);
+
+    const ambient = new THREE.AmbientLight(0x404040);
+    scene.add(ambient);
+
+    // إعداد الثعبان
+    let snake = [{x:0, y:0, z:0}];
+    let snakeMeshes = [];
+    const snakeMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
+    function drawSnake() {
+        // إزالة الأج��ام القديمة
+        snakeMeshes.forEach(mesh => scene.remove(mesh));
+        snakeMeshes = [];
+        // رسم الأجسام الجديدة
+        snake.forEach(segment => {
+            const geo = new THREE.BoxGeometry(1,1,1);
+            const mesh = new THREE.Mesh(geo, snakeMaterial);
+            mesh.position.set(segment.x, 0.5, segment.z);
+            scene.add(mesh);
+            snakeMeshes.push(mesh);
+        });
+    }
+
+    // إعداد الطعام
+    let food = {x:3, z:3};
+    let foodMesh;
+    function drawFood() {
+        if(foodMesh) scene.remove(foodMesh);
+        const geo = new THREE.SphereGeometry(0.5, 16, 16);
+        const mat = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+        foodMesh = new THREE.Mesh(geo, mat);
+        foodMesh.position.set(food.x, 0.5, food.z);
+        scene.add(foodMesh);
+    }
+
+    function randomPos() {
+        // داخل حدود الأرضية
+        return Math.floor(Math.random() * 18) - 9; // من -9 إلى +8
+    }
+
+    let direction = {x:1, z:0};
+    let nextDirection = {x:1, z:0};
+    let score = 0;
+    let isGameOver = false;
+
+    function resetGame() {
+        snake = [{x:0, y:0, z:0}];
+        direction = {x:1, z:0};
+        nextDirection = {x:1, z:0};
+        score = 0;
+        isGameOver = false;
+        document.getElementById('score').textContent = 'النقاط: 0';
+        placeFood();
+    }
+
+    function placeFood() {
+        let valid = false;
+        while(!valid) {
+            const x = randomPos();
+            const z = randomPos();
+            valid = !snake.some(seg => seg.x === x && seg.z === z);
+            if(valid) {
+                food.x = x;
+                food.z = z;
+            }
+        }
+        drawFood();
+    }
+
+    function moveSnake() {
+        if(isGameOver) return;
+        direction = {...nextDirection};
+        const head = {x: snake[0].x + direction.x, y:0, z: snake[0].z + direction.z};
+        // تحقق من الاصطدام بالجدار
+        if(head.x < -9 || head.x > 9 || head.z < -9 || head.z > 9) {
+            endGame();
+            return;
+        }
+        // تحقق من الاصطدام بنفسك
+        if(snake.some(seg=> seg.x === head.x && seg.z === head.z)) {
+            endGame();
+            return;
+        }
+        snake.unshift(head);
+        // تحقق من أكل الطعام
+        if(head.x === food.x && head.z === food.z) {
+            score += 1;
+            document.getElementById('score').textContent = 'النقاط: ' + score;
+            placeFood();
+        } else {
+            snake.pop();
+        }
+        drawSnake();
+    }
+
+    function endGame() {
+        isGameOver = true;
+        alert("انتهت اللعبة! نقاطك: " + score);
+        resetGame();
+    }
+
+    // التحكم بالأسهم
+    document.addEventListener('keydown', function(e) {
+        if(isGameOver) return;
+        if(e.key === "ArrowUp" && direction.z !== 1) { nextDirection = {x:0, z:-1}; }
+        else if(e.key === "ArrowDown" && direction.z !== -1) { nextDirection = {x:0, z:1}; }
+        else if(e.key === "ArrowLeft" && direction.x !== 1) { nextDirection = {x:-1, z:0}; }
+        else if(e.key === "ArrowRight" && direction.x !== -1) { nextDirection = {x:1, z:0}; }
+    });
+
+    // بدء اللعبة
+    drawSnake();
+    placeFood();
+
+    function animate() {
+        requestAnimationFrame(animate);
+        renderer.render(scene, camera);
+    }
+    animate();
+
+    // تحديث حركة الثعبان كل 200ms
+    setInterval(moveSnake, 200);
+
+    </script>
+</body>
+</html>
